@@ -66,19 +66,22 @@ class Format(object):
     @staticmethod
     def github(problem: PIIProblem, filename: str) -> str:
         """
-        Output the problem in git-diff-like format.
+        Output the problem as a GitHub Actions workflow command.
 
         :param problem: PIIProblem to be formatted.
         :param filename: Filename where the problem occurs.
         """
-        line = (
-            f"::{str(problem.score)} file={filename},line={format(problem.line)},"
-            + f"col={format(problem.column)}::{format(problem.line)}"
-            + f":{format(problem.column)} [{problem.type}]"
-        )
+        level = "error" if problem.level == "error" else "warning"
+        message = "%d:%d [%s]" % (problem.line, problem.column, problem.type)
         if problem.explanation:
-            line += problem.explanation
-        return line
+            message += problem.explanation
+        return "::%s file=%s,line=%s,col=%s::%s" % (
+            level,
+            _escape_github_property(filename),
+            format(problem.line),
+            format(problem.column),
+            _escape_github_data(message),
+        )
 
 
 def threshold_value(value: str) -> float:
@@ -94,6 +97,16 @@ def threshold_value(value: str) -> float:
         )
 
     return threshold
+
+
+def _escape_github_data(value: str) -> str:
+    """Escape a GitHub workflow command message (https://github.com/actions/toolkit)."""
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def _escape_github_property(value: str) -> str:
+    """Escape a GitHub workflow command property value."""
+    return _escape_github_data(value).replace(",", "%2C").replace(":", "%3A")
 
 
 def supports_color() -> bool:
@@ -121,9 +134,10 @@ def show_problems(
     :param file: processed filename for 'stdin'
     :param args_format: format in which to output discovered problems
     :param no_warn: whether to output only error level problems
+    :return: number of problems printed
     """
-    max_level = 0
     first = True
+    shown = 0
 
     if args_format == "auto":
         if "GITHUB_ACTIONS" in os.environ and "GITHUB_WORKFLOW" in os.environ:
@@ -151,6 +165,7 @@ def show_problems(
                 print(file)
                 first = False
             print(Format.standard(problem))
+        shown += 1
 
     if not first and args_format == "github":
         print("::endgroup::")
@@ -158,7 +173,7 @@ def show_problems(
     if not first and args_format != "parsable":
         print("")
 
-    return max_level
+    return shown
 
 
 def find_files_recursively(
@@ -269,8 +284,8 @@ def run() -> None:
         except Exception:
             traceback.print_exc()
             continue
-        prob_num = show_problems(
-            problems, file, args_format=args.format, no_warn=args.no_warnings
+        prob_num += show_problems(
+            problems, filepath, args_format=args.format, no_warn=args.no_warnings
         )
 
     if args.stdin:
@@ -279,7 +294,7 @@ def run() -> None:
         except EnvironmentError as e:
             print(e, file=sys.stderr)
             sys.exit(1)
-        prob_num = show_problems(
+        prob_num += show_problems(
             problems,
             "stdin",
             args_format=args.format,

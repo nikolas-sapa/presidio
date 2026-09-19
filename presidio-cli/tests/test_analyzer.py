@@ -1,5 +1,18 @@
 import pytest
-from presidio_cli.analyzer import analyze, line_generator
+from presidio_analyzer import RecognizerResult
+from presidio_cli.analyzer import PIIProblem, analyze, line_generator
+
+
+def _problem(score):
+    return PIIProblem(
+        1, RecognizerResult(entity_type="PERSON", start=0, end=5, score=score)
+    )
+
+
+def test_problem_level_matches_colored_output_split():
+    assert _problem(1.0).level == "error"
+    assert _problem(0.85).level == "warning"
+    assert _problem(0.0).level == "warning"
 
 
 def test_line_generator():

@@ -61,6 +61,9 @@ class PIIProblem(object):
         self.type = self.recognizer_result["entity_type"]
         # Score as a probability determined by the model
         self.score = self.recognizer_result["score"]
+        #: Severity level, matching the colored output split:
+        #: score 1.0 is an error, anything below is a warning
+        self.level = "error" if self.score >= 1.0 else "warning"
 
 
 def _analyze(

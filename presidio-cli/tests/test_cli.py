@@ -12,6 +12,7 @@ def problems(mocker):
         line=1,
         column=7,
         score=1.0,
+        level="error",
         type="PERSON",
         explanation=None,
         recognizer_result={},
@@ -20,6 +21,7 @@ def problems(mocker):
         line=2,
         column=17,
         score=0.85,
+        level="warning",
         type="PERSON",
         explanation="some example",
         recognizer_result={},
@@ -73,7 +75,39 @@ def test_show_problems(arg_format, problems):
     filepath = "./example.txt"
 
     rc = cli.show_problems(problems, filepath, arg_format, False)
-    assert rc == 0
+    assert rc == 2
+
+
+def test_show_problems_no_warnings_filters(problems, capsys):
+    rc = cli.show_problems(problems, "example.txt", "standard", True)
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "PERSON" in out
+    assert "some example" not in out
+
+
+def test_github_format_uses_workflow_commands(problems):
+    error_line = cli.Format.github(problems[0], "pii.txt")
+    assert error_line.startswith("::error file=pii.txt,line=1,col=7::")
+    assert "[PERSON]" in error_line
+
+    warning_line = cli.Format.github(problems[1], "pii.txt")
+    assert warning_line.startswith("::warning file=pii.txt,line=2,col=17::")
+
+
+def test_github_format_escapes_values(mocker):
+    problem = mocker.Mock(
+        line=1,
+        column=1,
+        score=1.0,
+        level="error",
+        type="PERSON",
+        explanation="a%b\nc",
+        recognizer_result={},
+    )
+    line = cli.Format.github(problem, "dir/a,b:c.txt")
+    assert "file=dir/a%2Cb%3Ac.txt" in line
+    assert line.endswith("a%25b%0Ac")
 
 
 def test_show_problems_auto_gh(problems, monkeypatch):
@@ -82,7 +116,7 @@ def test_show_problems_auto_gh(problems, monkeypatch):
 
     filepath = "./example.txt"
     rc = cli.show_problems(problems, filepath, "auto", False)
-    assert rc == 0
+    assert rc == 2
 
 
 def test_show_problems_auto_color(problems, monkeypatch, mocker):
@@ -90,7 +124,7 @@ def test_show_problems_auto_color(problems, monkeypatch, mocker):
     mocker.patch("sys.stdout")
     filepath = "./example.txt"
     rc = cli.show_problems(problems, filepath, "auto", False)
-    assert rc == 0
+    assert rc == 2
 
 
 def test_run_current_dir(temp_workspace, mocker):
@@ -98,7 +132,8 @@ def test_run_current_dir(temp_workspace, mocker):
     mocker.patch("sys.argv", ["", "."])
     ec = mocker.patch("sys.exit")
     cli.run()
-    ec.assert_called_once_with(0)
+    # temp workspace contains PII fixtures, so findings are printed
+    ec.assert_called_once_with(1)
 
 
 def test_run_with_config(temp_workspace, mocker):
@@ -109,7 +144,8 @@ def test_run_with_config(temp_workspace, mocker):
     mocker.patch("sys.argv", ["-c", ".presidiocli", "."])
     ec = mocker.patch("sys.exit")
     cli.run()
-    ec.assert_called_once_with(0)
+    # temp workspace contains PII fixtures, so findings are printed
+    ec.assert_called_once_with(1)
 
 
 def test_run_preserves_config_threshold_when_flag_is_omitted(mocker):

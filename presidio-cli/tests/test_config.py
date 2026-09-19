@@ -35,6 +35,19 @@ def test_unknown_entity():
     assert "invalid config: no such entity NOTEXISTS" in str(excinfo.value)
 
 
+@pytest.mark.parametrize("value", ["5", "-0.1", "1.1", "abc", ""])
+def test_invalid_threshold_in_config(value):
+    with pytest.raises(config.PresidioCLIConfigError) as excinfo:
+        config.PresidioCLIConfig(f"threshold: {value}\n")
+    assert "Invalid threshold value" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(("value", "expected"), [("0", 0.0), ("0.7", 0.7), ("1", 1.0)])
+def test_valid_threshold_in_config(value, expected):
+    conf = config.PresidioCLIConfig(f"threshold: {value}\n")
+    assert conf.threshold == expected
+
+
 def test_is_file(temp_workspace, config):
     for f in [
         os.path.join(temp_workspace, "empty.txt"),
